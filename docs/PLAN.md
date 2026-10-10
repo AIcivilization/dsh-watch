@@ -32,19 +32,35 @@
 
 ## 二、双层模型（产品核心）
 
-### 被动层：兜底（已实现）
+### 被动层：兜底
 
-事件规则 → 推送。监听五类事件：`agent/status`（跑完）、`agent/error`、`approval/request`（等批权限）、`user-questions/request`（反问）、`agent/request-error`（默认关）。本质是"读它的仪表盘然后转发"——agent 不知道自己在被值守。这层保证 agent 永远不会失联地完成或卡死，是地板，不是产品。
+事件规则 → 推送。监听七类事件：`agent/status`（跑完）、`agent/error`、`approval/request`（等批权限）、`user-questions/request`（反问）、`agent/request-error`（默认关）、`subagent/start`、`subagent/end`（默认关）。八个通道：Telegram / Bark / ntfy / Slack / Discord / Lark(飞书) / 通用 webhook / **desktop**（mac/Linux/Windows 桌面通知——本地跑 dsh 也覆盖，产品不限于 VPS）。另有延迟投递（`delaySeconds`）与冷却去重。被动层回答"agent 状态如何"——这层保证 agent 永远不会失联地完成或卡死，是地板，不是产品。
 
-### 主动层：跃迁（待做）
+### 主动层：跃迁
 
 给 agent 一张嘴：注册 `notify` 工具 + 经 `system-prompt/assemble` 注入一句"你可以随时用 notify 主动联系用户"。agent 在回合中自己判断什么值得打断用户：
 
 > `notify("我发现第三方的支付回调没有验签，要不要我继续深挖？")`
 
-被动层回答"agent 状态如何"，主动层回答"**agent 觉得什么事值得你知道**"。场景彻底打开：代码审查跑两小时，中途发现可疑漏洞当场举手，而不是憋到结束；调研任务全程都是"发现"。
+主动层回答"**agent 觉得什么事值得你知道**"。场景彻底打开：代码审查跑两小时，中途发现可疑漏洞当场举手，而不是憋到结束；调研任务全程都是"发现"。
 
 官方证据支持这条路可行且无竞争：tool-schedule 就是同款做法（注册工具让 agent 自主调用），而"没卡住也想说"这个通道没有任何官方包在做。
+
+### 竞品基线（2026-10 调研）
+
+对标 [agent-notifications](https://github.com/777genius/claude-notifications-go)（816★，Claude/Codex/OpenCode/Gemini 四生态）与 OpenCode 通知插件族（opencode-notification 等）：
+
+| 功能 | agent-notifications | OpenCode 族 | dsh-watch |
+|---|---|---|---|
+| 事件：完成/出错/审批/提问 | ✅ | ✅（四事件，同构） | ✅ |
+| 会话限额事件 | ✅ | — | ✗（dsh 无对应事件，不做） |
+| 子代理事件开关 | ✅ | — | ✅（默认关） |
+| 通道 | Slack/Discord/Telegram/飞书/自定义 | 桌面为主 | 8 通道（含桌面，全平台） |
+| 点击聚焦原始终端 | ✅ | — | ✗（dsh 场景=web 深链接，已有） |
+| 防打扰（延迟/去重） | ✅（DND/聚焦感知/延迟） | ✅（延迟 15s） | ✅（延迟/冷却/minRun 防抖；聚焦感知 headless 无从谈起，不做） |
+| **agent 主动通知** | ✅（agent-notify MCP） | — | ✅（notify 工具，一等公民而非外挂 MCP） |
+
+结论：被动层补齐地面（通道/延迟/子代理）后与 816★ 标杆功能面打平；主动层我们做进插件本体（标杆是外挂 MCP），且绑定 dsh 的 system-prompt 瀑布，教给 agent 的"发送品位"更深。
 
 ## 三、原则
 
@@ -84,19 +100,14 @@
 
 ## 六、里程碑
 
-### M1 · 真机验证被动层（本周，~1 天）
-- [ ] VPS 真实安装，验证五类事件 payload 字段名（防御式猜的，需对照真实事件修正）
-- [ ] Telegram + Bark 双通道实测：任务完成、审批请求两条关键路径
+### M1 · 真机验证（代码已完成，待装机，~1 天）
+- [ ] VPS 真实安装，验证事件 payload 字段名（防御式猜的，需对照真实事件修正）
+- [ ] Telegram + desktop 双通道实测：任务完成、审批请求两条关键路径
+- [ ] `notify` 工具注册与调用实测（真机观察 agent 发送品位，调 prompt 措辞）
 - [ ] 深链接经 vpssh 隧道在手机上点通
-- [ ] 修正字段 → 0.1.0 首发（被动层，先占住生态坑位）
+- [ ] 修正 → 0.1.0 首发（双层一起发：被动层已与 816★ 标杆功能面打平，主动层是差异点，首发即立住定位）
 
-### M2 · 主动层（0.2.0，验证后 2~3 天）
-- [ ] `notify` 工具注册 + urgency 分级路由（urgent 即时 / info 入队）
-- [ ] system-prompt 注入，措辞调优（真机观察 agent 实际发送品位）
-- [ ] digest：每日定时报送当日 info + 汇总
-- [ ] 防打扰兜底：info 每日上限、重复抑制
-
-### M3 · 打磨与联动（按反馈）
+### M2 · 打磨（首发后按反馈）
 - [ ] 静音时段 / 静音规则
 - [ ] 按 workspace/项目路由到不同频道
 - [ ] vpssh 一条命令带上 dsh-watch（装 VPS 即装值守）

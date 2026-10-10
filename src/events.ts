@@ -13,6 +13,7 @@
  * - agent/request-error (waterfall) model request failures, chained via next()
  * - approval/request    (waterfall) permission approval requested
  * - user-questions/request (waterfall) agent asked the user a question
+ * - subagent/start, subagent/end (emit, off by default)
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -41,6 +42,19 @@ interface AskEventLike {
   message?: unknown
 }
 
+/**
+ * The host's event-name typing lives in @deepseek-ai/dsh-agent types that a
+ * third-party plugin does not ship with; without them `ctx.on` only accepts
+ * `keyof Events` = never. Bridge to a loose signature once and keep every
+ * listener defensively typed — same fail-open posture dshmarket uses for
+ * host contracts it cannot import.
+ */
+type LooseOn = (name: string, listener: (...args: never[]) => unknown) => void
+
+function looseOn(ctx: Context): LooseOn {
+  return ctx.on as unknown as LooseOn
+}
+
 function agentKey(event: object): string {
   const id = (event as { agentId?: unknown }).agentId
   return typeof id === 'string' && id !== '' ? id : 'agent'
@@ -60,19 +74,6 @@ function tail(text: string | undefined, lines: number): string {
 
 function deepLink(linkBase: string | undefined, agentId: string): string | undefined {
   return linkBase !== undefined ? `${linkBase.replace(/\/+$/, '')}/#agent=${encodeURIComponent(agentId)}` : undefined
-}
-
-/**
- * The host's event-name typing lives in @deepseek-ai/dsh-agent types that a
- * third-party plugin does not ship with; without them `ctx.on` only accepts
- * `keyof Events` = never. Bridge to a loose signature once and keep every
- * listener defensively typed — same fail-open posture dshmarket uses for
- * host contracts it cannot import.
- */
-type LooseOn = (name: string, listener: (...args: never[]) => unknown) => void
-
-function looseOn(ctx: Context): LooseOn {
-  return ctx.on as unknown as LooseOn
 }
 
 export function wireAgentEvents(ctx: Context, dispatcher: WatchDispatcher, config: WatchConfig): void {
@@ -142,5 +143,20 @@ export function wireAgentEvents(ctx: Context, dispatcher: WatchDispatcher, confi
     })
     return next(event)
   })
-}
 
+  on('subagent/start', (event: ErrorEventLike) => {
+    dispatcher.dispatch({
+      kind: 'subagentStart',
+      title: 'dsh · 子代理启动',
+      body: tail(firstText(event.message), 2),
+    })
+  })
+
+  on('subagent/end', (event: ErrorEventLike) => {
+    dispatcher.dispatch({
+      kind: 'subagentEnd',
+      title: 'dsh · 子代理完成',
+      body: tail(firstText(event.message), 2),
+    })
+  })
+}

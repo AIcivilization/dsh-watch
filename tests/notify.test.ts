@@ -41,4 +41,35 @@ describe('WatchDispatcher', () => {
 
     expect(send).not.toHaveBeenCalled()
   })
+
+  it('flushes the info digest on demand', async () => {
+    const send = vi.fn().mockResolvedValue(undefined)
+    const dispatcher = new WatchDispatcher(fakeContext(), { provider: 'webhook', maxInfoPerDay: 2 } as never, send)
+
+    dispatcher.queueInfo('发现 A')
+    dispatcher.queueInfo('发现 B')
+    dispatcher.flushDigest()
+    dispatcher.flushDigest()
+    await new Promise(resolve => setImmediate(resolve))
+
+    expect(send).toHaveBeenCalledTimes(1)
+    const payload = send.mock.calls[0]?.[0] as { title: string; body: string }
+    expect(payload.title).toContain('今日摘要')
+    expect(payload.body).toContain('发现 A')
+    expect(payload.body).toContain('发现 B')
+  })
+
+  it('caps info messages per day and notes the drop', async () => {
+    const send = vi.fn().mockResolvedValue(undefined)
+    const dispatcher = new WatchDispatcher(fakeContext(), { provider: 'webhook', maxInfoPerDay: 1 } as never, send)
+
+    dispatcher.queueInfo('第一条')
+    dispatcher.queueInfo('第二条会被记为超限')
+    dispatcher.flushDigest()
+    await new Promise(resolve => setImmediate(resolve))
+
+    const payload = send.mock.calls[0]?.[0] as { body: string }
+    expect(payload.body).toContain('第一条')
+    expect(payload.body).toContain('上限')
+  })
 })
