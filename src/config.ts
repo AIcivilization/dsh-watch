@@ -1,4 +1,4 @@
-import { Schema } from '@deepseek-ai/schemastery'
+import Schema from '@deepseek-ai/schemastery'
 
 /**
  * Where to send notifications. One provider per profile for now;

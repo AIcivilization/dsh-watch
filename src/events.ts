@@ -16,8 +16,8 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { WatchConfig } from './config.ts'
-import type { WatchDispatcher } from './notify.ts'
+import type { WatchConfig } from './config.js'
+import type { WatchDispatcher } from './notify.js'
 
 /** Structural subset of agent/status payloads. */
 interface StatusEventLike {
@@ -62,13 +62,27 @@ function deepLink(linkBase: string | undefined, agentId: string): string | undef
   return linkBase !== undefined ? `${linkBase.replace(/\/+$/, '')}/#agent=${encodeURIComponent(agentId)}` : undefined
 }
 
+/**
+ * The host's event-name typing lives in @deepseek-ai/dsh-agent types that a
+ * third-party plugin does not ship with; without them `ctx.on` only accepts
+ * `keyof Events` = never. Bridge to a loose signature once and keep every
+ * listener defensively typed — same fail-open posture dshmarket uses for
+ * host contracts it cannot import.
+ */
+type LooseOn = (name: string, listener: (...args: never[]) => unknown) => void
+
+function looseOn(ctx: Context): LooseOn {
+  return ctx.on as unknown as LooseOn
+}
+
 export function wireAgentEvents(ctx: Context, dispatcher: WatchDispatcher, config: WatchConfig): void {
+  const on = looseOn(ctx)
   const runningSince = new Map<string, number>()
   const minRunMs = Math.max(0, (config.minRunSeconds ?? 0) * 1000)
 
   const linkBase = config.linkBase
 
-  ctx.on('agent/status', (event: StatusEventLike) => {
+  on('agent/status', (event: StatusEventLike) => {
     const agentId = agentKey(event as object)
     if (event.status === 'running') {
       runningSince.set(agentId, Date.now())
@@ -86,7 +100,7 @@ export function wireAgentEvents(ctx: Context, dispatcher: WatchDispatcher, confi
     })
   })
 
-  ctx.on('agent/error', (event: ErrorEventLike) => {
+  on('agent/error', (event: ErrorEventLike) => {
     dispatcher.dispatch({
       kind: 'error',
       title: 'dsh · Agent 出错',
@@ -95,12 +109,12 @@ export function wireAgentEvents(ctx: Context, dispatcher: WatchDispatcher, confi
     })
   })
 
-  ctx.on('agent/turn-stopping', () => {
+  on('agent/turn-stopping', () => {
     // Natural-stop checkpoint: intentionally quiet, idle notification above
     // already covers the common case. Kept as a seam for future quiet rules.
   })
 
-  ctx.on('agent/request-error', (event: ErrorEventLike, next: (value: ErrorEventLike) => unknown) => {
+  on('agent/request-error', (event: ErrorEventLike, next: (value: ErrorEventLike) => unknown) => {
     dispatcher.dispatch({
       kind: 'requestError',
       title: 'dsh · 模型请求失败',
@@ -109,7 +123,7 @@ export function wireAgentEvents(ctx: Context, dispatcher: WatchDispatcher, confi
     return next(event)
   })
 
-  ctx.on('approval/request', (event: AskEventLike, next: (value: AskEventLike) => unknown) => {
+  on('approval/request', (event: AskEventLike, next: (value: AskEventLike) => unknown) => {
     dispatcher.dispatch({
       kind: 'approval',
       title: 'dsh · 等待权限确认',
@@ -119,7 +133,7 @@ export function wireAgentEvents(ctx: Context, dispatcher: WatchDispatcher, confi
     return next(event)
   })
 
-  ctx.on('user-questions/request', (event: AskEventLike, next: (value: AskEventLike) => unknown) => {
+  on('user-questions/request', (event: AskEventLike, next: (value: AskEventLike) => unknown) => {
     dispatcher.dispatch({
       kind: 'question',
       title: 'dsh · Agent 在问你',

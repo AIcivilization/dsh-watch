@@ -7,8 +7,8 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { WatchConfig } from './config.ts'
-import type { OutboundMessage, SendFn } from './providers.ts'
+import type { WatchConfig } from './config.js'
+import type { OutboundMessage, SendFn } from './providers.js'
 
 export class WatchDispatcher {
   private readonly send: SendFn

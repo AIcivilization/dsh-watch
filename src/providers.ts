@@ -3,7 +3,7 @@
  * All of them use the global fetch (Node >= 20), no extra dependencies.
  */
 
-import type { WatchConfig } from './config.ts'
+import type { WatchConfig } from './config.js'
 
 export interface OutboundMessage {
   /** Short kind label, e.g. "idle" / "approval". */

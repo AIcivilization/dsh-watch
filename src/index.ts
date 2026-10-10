@@ -13,10 +13,10 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { Config, type WatchConfig } from './config.ts'
-import { wireAgentEvents } from './events.ts'
-import { WatchDispatcher } from './notify.ts'
-import { resolveSend } from './providers.ts'
+import { Config, type WatchConfig } from './config.js'
+import { wireAgentEvents } from './events.js'
+import { WatchDispatcher } from './notify.js'
+import { resolveSend } from './providers.js'
 
 export const name = 'dsh-watch'
 
